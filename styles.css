@@ -46,7 +46,7 @@ kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; opaci
   transform: translate(-50%, -50%); transition: left 2s var(--ease), top 2s var(--ease), box-shadow var(--t);
   animation: float 9s ease-in-out infinite alternate; }
 @keyframes float { to { margin-top: -10px; } }
-body:not([data-view="now"]) .orb { opacity: .35; }
+body:not([data-current="now"]) .orb { opacity: .35; }
 .stars { position: absolute; inset: 0; opacity: 0; transition: opacity var(--t); }
 [data-phase="night"] .stars, [data-phase="dusk"][data-mode="dark"] .stars { opacity: 1; }
 [data-mode="light"] .stars { opacity: .0; }
@@ -95,6 +95,7 @@ body:not([data-view="now"]) .orb { opacity: .35; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 10px 18px; border-radius: 999px; cursor: pointer; font-weight: 500; font-size: var(--text-sm); text-decoration: none; transition: transform .15s var(--ease), background .2s, box-shadow .2s; }
 .btn:hover { transform: translateY(-1px); }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 .btn:active { transform: translateY(0); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 8px 24px -10px var(--accent); }
 .btn.primary kbd { border-color: currentColor; }
@@ -139,6 +140,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); }
 textarea { resize: vertical; }
 .status { display: flex; gap: 4px; flex-wrap: wrap; }
 .status button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 10px; font-size: var(--text-xs); cursor: pointer; color: var(--muted); }
+.status button:hover { color: var(--text); border-color: var(--accent); }
 .status button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .dots { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; }
 .dots i { aspect-ratio: 1; border-radius: 50%; background: var(--line); }
@@ -171,7 +173,8 @@ textarea { resize: vertical; }
 .settings .row > label { flex: 1; }
 fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
-.seg label { cursor: pointer; }
+.seg label { cursor: pointer; position: relative; }
+.seg label:hover span { border-color: var(--accent); }
 .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .seg span { display: inline-block; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); font-size: var(--text-sm); color: var(--text) !important; font-weight: 500 !important; letter-spacing: 0 !important; }
 .seg input:checked + span { background: var(--accent); color: var(--accent-ink) !important; border-color: transparent; }

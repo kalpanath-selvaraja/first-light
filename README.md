@@ -29,3 +29,13 @@ Then open http://localhost:8080
 
 ## Keyboard
 S = start 2 minutes · D = I drifted · Esc = back to Now
+
+## What's fixed in v2
+- Clicks work everywhere again. The app put a `data-view` tag on the whole page, so every click was treated as "switch page" and cancelled. That broke picking a lead track, all radio buttons, the Import button, "Open my work", past-review toggles, and typing in the Learning cards.
+- Weekly review now saves (it used to reload the page and lose what you wrote). Saving again in the same week updates it.
+- Learning cards: typing and tabbing between fields keeps your cursor; numbers are kept in range; bad links are rejected with a message.
+- A reserve can only be used once per day per track, and "reserves left" never goes negative.
+- Minutes are counted when you press Done, not when you finish typing the log.
+- Backups: import cleans up missing or broken fields; export no longer includes internal data.
+- Esc closes pop-ups first instead of jumping pages; the browser back button works.
+- Updates now reach you: the offline cache checks the network first. If you had the old version installed, reload the page twice once.

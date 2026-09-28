@@ -9,6 +9,8 @@
   const esc = (s = '') => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const safeUrl = (u) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch { return ''; } };
 
+  const STATUSES = ['not started', 'exploring', 'practicing', 'applied'];
+
   /* ---------- State ---------- */
   const seed = () => {
     const py = uid(), mern = uid(), proj = uid();
@@ -19,7 +21,7 @@
         { id: mern, name: 'MERN (RAD)', why: 'RAD is this semester, and MERN is what employers ask for.', nextStep: 'Open the MERN repo and run npm run dev', weeklyTarget: 4, reservesPerWeek: 2, status: 'practicing', resources: [], active: true },
         { id: proj, name: 'Project', why: "A finished project shows what I can do better than any grade.", nextStep: 'Write the README for my next project in 3 lines', weeklyTarget: 2, reservesPerWeek: 1, status: 'not started', resources: [], active: true },
       ],
-      sessions: [], lapses: [], reviews: [], reserves: {},
+      sessions: [], lapses: [], reviews: [], reserves: {}, reserveDays: {},
       plans: [
         { id: uid(), cue: 'I open Chrome and feel the pull to YouTube', action: 'click Start 2 minutes on my lead track', enabled: true },
         { id: uid(), cue: 'I get home from IJSE and open the laptop', action: 'open my MERN repo and run it, 2 minutes only', enabled: true },
@@ -29,18 +31,43 @@
     };
   };
 
+  const arr = x => Array.isArray(x) ? x : [];
+  const clampInt = (v, lo, hi, def) => { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def; };
+  // Make any stored or imported data safe to use (missing fields, wrong types).
+  function normalize(s) {
+    const base = seed();
+    const tracks = arr(s.tracks).filter(t => t && typeof t === 'object').map(t => ({
+      id: String(t.id || uid()), name: String(t.name || 'Untitled track'), why: String(t.why || ''),
+      nextStep: String(t.nextStep || ''), weeklyTarget: clampInt(t.weeklyTarget, 1, 14, 3),
+      reservesPerWeek: clampInt(t.reservesPerWeek, 0, 5, 1), status: STATUSES.includes(t.status) ? t.status : 'not started',
+      resources: arr(t.resources).filter(r => r && r.url), active: t.active !== false,
+    }));
+    const out = {
+      ...base, ...s, v: 1, tracks,
+      sessions: arr(s.sessions).filter(x => x && x.trackId && x.startedAt),
+      lapses: arr(s.lapses).filter(x => x && x.at), reviews: arr(s.reviews).filter(Boolean),
+      plans: arr(s.plans).filter(x => x && x.cue).map(x => ({ id: String(x.id || uid()), cue: String(x.cue), action: String(x.action || ''), enabled: x.enabled !== false })),
+      reserves: s.reserves && typeof s.reserves === 'object' ? s.reserves : {},
+      reserveDays: s.reserveDays && typeof s.reserveDays === 'object' ? s.reserveDays : {},
+      settings: { ...base.settings, ...(s.settings || {}) },
+    };
+    if (!['auto', 'light', 'dark'].includes(out.settings.themeMode)) out.settings.themeMode = 'auto';
+    if (!tracks.some(t => t.id === out.leadTrack)) out.leadTrack = tracks[0] ? tracks[0].id : null;
+    delete out._pick; delete out._prevVisit;
+    return out;
+  }
   const load = () => {
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return seed();
       const s = JSON.parse(raw);
       if (!s || s.v !== 1 || !Array.isArray(s.tracks)) return seed();
-      const base = seed();
-      return { ...base, ...s, settings: { ...base.settings, ...(s.settings || {}) }, reserves: s.reserves || {} };
+      return normalize(s);
     } catch { return seed(); }
   };
   let S = load();
-  const save = () => { try { const { _pick, _prevVisit, ...out } = S; localStorage.setItem(KEY, JSON.stringify(out)); } catch (e) { toast('Could not save: storage is full or blocked.'); } };
+  const snapshot = () => { const { _pick, _prevVisit, ...out } = S; return out; };
+  const save = () => { try { const out = snapshot(); localStorage.setItem(KEY, JSON.stringify(out)); } catch (e) { toast('Could not save: storage is full or blocked.'); } };
 
   /* ---------- Time helpers ---------- */
   const pad = n => String(n).padStart(2, '0');
@@ -125,8 +152,9 @@
     const fb = $('#freshBanner');
     const isMonday = now.getDay() === 1, isFirst = now.getDate() === 1, isSem = S.settings.semesterStart === dayKey(now);
     if (isMonday || isFirst || isSem) {
-      const why = isSem ? 'A new semester' : isFirst ? 'A new month' : 'A new week';
-      fb.innerHTML = `<b>Fresh page.</b> ${why}. Reserves are reset and last week doesn't count against you. What's the first 2 minutes?`;
+      const why = isSem ? 'A new semester' : isMonday ? 'A new week' : 'A new month';
+      const extra = isMonday ? 'Reserves are reset and last week doesn\'t count against you.' : 'Whatever happened before doesn\'t count against you.';
+      fb.innerHTML = `<b>Fresh page.</b> ${why}. ${extra} What's the first 2 minutes?`;
       fb.hidden = false;
     } else fb.hidden = true;
 
@@ -141,7 +169,7 @@
       $('#launchTrack').textContent = t.name;
       $('#launchWhy').textContent = t.why || '';
       $('#launchStep').textContent = t.nextStep || 'Decide the smallest possible first step.';
-      const lastUrl = (S.sessions.filter(s => s.trackId === t.id && s.artifactUrl).slice(-1)[0] || {}).artifactUrl || (t.resources[0] || {}).url;
+      const lastUrl = (S.sessions.filter(s => s.trackId === t.id && s.artifactUrl).slice(-1)[0] || {}).artifactUrl || ((t.resources || [])[0] || {}).url;
       const u = safeUrl(lastUrl || '');
       const ow = $('#openWork'); if (u) { ow.href = u; ow.hidden = false; } else ow.hidden = true;
     }
@@ -169,7 +197,6 @@
   }
 
   /* ---------- Rendering: Tracks ---------- */
-  const STATUSES = ['not started', 'exploring', 'practicing', 'applied'];
   function dotsFor(trackId) {
     // 12 weeks: level by reps per week
     const ws = weekStart();
@@ -182,11 +209,15 @@
     }
     return out;
   }
+  function weekLine(t) {
+    const today = dayKey(), reps = sessionsThisWeek(t.id).length, rs = reservesUsed(t.id), left = Math.max(0, t.reservesPerWeek - rs);
+    const reservedToday = (S.reserveDays || {})[t.id] === today;
+    const repToday = S.sessions.some(s => s.trackId === t.id && dayKey(new Date(s.startedAt)) === today);
+    return `<span>This week: <b>${reps}</b>/${t.weeklyTarget} reps${rs ? ` · ${rs} reserve used` : ''}</span>
+          ${!repToday && !reservedToday && left > 0 ? `<button class="link" data-act="reserve">Use a reserve (${left} left)</button>` : `<span class="muted">${reservedToday ? 'Reserve used today' : repToday ? 'Rep done today' : `${left} reserves left`}</span>`}`;
+  }
   function renderTracks() {
-    const today = dayKey();
     $('#tracksList').innerHTML = S.tracks.map(t => {
-      const reps = sessionsThisWeek(t.id).length, rs = reservesUsed(t.id), left = t.reservesPerWeek - rs;
-      const repToday = S.sessions.some(s => s.trackId === t.id && dayKey(new Date(s.startedAt)) === today);
       const ev = S.sessions.filter(s => s.trackId === t.id && s.evidence).slice(-4).reverse();
       return `<article class="card track" data-id="${t.id}" style="${t.active ? '' : 'opacity:.55'}">
         <div class="row between"><input class="track-name" data-f="name" value="${esc(t.name)}" aria-label="Track name">
@@ -196,10 +227,9 @@
         <div class="field"><span>Stage</span><div class="status">${STATUSES.map(s => `<button data-status="${s}" aria-pressed="${t.status === s}">${s}</button>`).join('')}</div></div>
         <div class="row gap"><label class="field" style="flex:1"><span>Reps / week</span><input type="number" min="1" max="14" data-f="weeklyTarget" value="${t.weeklyTarget}"></label>
           <label class="field" style="flex:1"><span>Reserve days</span><input type="number" min="0" max="5" data-f="reservesPerWeek" value="${t.reservesPerWeek}"></label></div>
-        <div class="row between small"><span>This week: <b>${reps}</b>/${t.weeklyTarget} reps${rs ? ` · ${rs} reserve used` : ''}</span>
-          ${!repToday && left > 0 ? `<button class="link" data-act="reserve">Use a reserve (${left} left)</button>` : `<span class="muted">${left} reserves left</span>`}</div>
+        <div class="row between small week-line">${weekLine(t)}</div>
         <div class="field"><span>Last 12 weeks</span><div class="dots">${dotsFor(t.id)}</div></div>
-        <label class="field"><span>Main resource link</span><input type="url" data-f="resource" placeholder="https://…" value="${esc((t.resources[0] || {}).url || '')}"></label>
+        <label class="field"><span>Main resource link</span><input type="url" data-f="resource" placeholder="https://…" value="${esc(((t.resources || [])[0] || {}).url || '')}"></label>
         ${ev.length ? `<div class="field"><span>Recent work</span><ul class="evidence">${ev.map(s => `<li>${esc(s.evidence)} <span class="muted">· ${new Date(s.startedAt).toLocaleDateString()}</span></li>`).join('')}</ul></div>` : ''}
         <div class="row between"><button class="link" data-act="toggle">${t.active ? 'Archive' : 'Restore'}</button><button class="btn" data-act="start">Start 2 minutes</button></div>
       </article>`;
@@ -229,12 +259,14 @@
     const hm = Math.max(1, ...hrs);
     const peakH = h => { const d = new Date(); d.setHours(h, 30, 0, 0); return inPeak(d); };
     $('#revHours').innerHTML = hrs.map((n, h) => `<div class="hc ${peakH(h) ? 'peak' : ''}" title="${pad(h)}:00 · ${n} sessions"><div class="h" style="height:${n / hm * 100}%"></div></div>`).join('')
-      + '';
-    $('#revHours').insertAdjacentHTML('afterend', '');
+
     let lbl = $('#hoursLbl'); if (!lbl) { lbl = document.createElement('div'); lbl.id = 'hoursLbl'; lbl.className = 'hours-lbl'; $('#revHours').after(lbl); }
     lbl.innerHTML = hrs.map((_, h) => `<span>${h % 3 === 0 ? h : ''}</span>`).join('');
 
-    const past = [...S.reviews].reverse().slice(0, 8);
+    const wk = weekKey(), cur = S.reviews.find(r => r.weekStart === wk) || {};
+    const rf = $('#reviewForm'); rf.wins.value = cur.wins || ''; rf.stuck.value = cur.stuck || ''; rf.nextSteps.value = cur.nextSteps || '';
+    $('#reviewForm button[type=submit]').textContent = cur.weekStart ? 'Update review' : 'Save review';
+    const past = [...S.reviews].sort((a, b) => String(b.weekStart).localeCompare(String(a.weekStart))).slice(0, 8);
     $('#pastReviews').innerHTML = past.length ? `<div class="card soft past"><h2 class="h-small">Past reviews</h2>${past.map(r => `<details><summary>Week of ${esc(r.weekStart)}</summary>
       <p><b>Easy:</b> ${esc(r.wins) || '-'}</p><p><b>Pulled away:</b> ${esc(r.stuck) || '-'}</p><p><b>Next:</b> ${esc(r.nextSteps) || '-'}</p></details>`).join('')}</div>` : '';
   }
@@ -251,11 +283,11 @@
   /* ---------- Views ---------- */
   let current = 'now';
   function show(view, opts = {}) {
-    current = view; document.body.dataset.view = view;
+    current = view; document.body.dataset.current = view;
     $$('.view').forEach(v => v.hidden = v.id !== `view-${view}`);
     $$('.nav-btn').forEach(b => b.setAttribute('aria-current', b.dataset.view === view ? 'page' : 'false'));
     ({ now: renderNow, tracks: renderTracks, review: renderReview, settings: renderSettings })[view]();
-    if (history.replaceState) history.replaceState(null, '', '#' + view);
+    if (location.hash !== '#' + view && history.replaceState) history.replaceState(null, '', '#' + view);
     if (opts.focus === 'plans') setTimeout(() => $('#plansEdit').scrollIntoView({ behavior: 'smooth' }), 50);
     else window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -264,12 +296,12 @@
   let tt; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2600); }
 
   /* ---------- Focus session ---------- */
-  const F = { track: null, start: 0, timer: null, done: false };
+  const F = { track: null, start: 0, end: 0, timer: null, done: false };
   const CIRC = 2 * Math.PI * 90;
   function startFocus(track) {
     if (!track) return;
     closeAll();
-    F.track = track; F.start = Date.now(); F.done = false;
+    F.track = track; F.start = Date.now(); F.end = 0; F.done = false;
     $('#focusTrack').textContent = track.name;
     $('#focusStep').textContent = track.nextStep || 'Your first tiny step';
     $('#focusWhy').textContent = track.why ? `Why: ${track.why}` : '';
@@ -296,23 +328,24 @@
     document.title = `${$('#ringTime').textContent} · First Light`;
   }
   function finishFocus() {
-    clearInterval(F.timer);
+    clearInterval(F.timer); F.end = Date.now();
     $('#focusBtns').hidden = true; $('#logForm').hidden = false;
     $('#logForm').next.value = F.track.nextStep || '';
     $('#logForm').evidence.focus();
   }
   function logFocus(e) {
     e.preventDefault();
-    const f = e.target, mins = Math.max(1, Math.round((Date.now() - F.start) / 60000));
+    const f = e.target, mins = Math.max(1, Math.round(((F.end || Date.now()) - F.start) / 60000));
     const url = safeUrl(f.url.value.trim());
     S.sessions.push({ id: uid(), trackId: F.track.id, startedAt: new Date(F.start).toISOString(), minutes: mins, kind: mins > 2 ? 'continued' : 'two-minute', evidence: f.evidence.value.trim().slice(0, 200), artifactUrl: url });
     const t = trackById(F.track.id); if (t && f.next.value.trim()) t.nextStep = f.next.value.trim().slice(0, 200);
     save(); $('#focus').hidden = true; document.title = 'First Light';
+    const tname = F.track.name; F.track = null;
     S._pick = null;
-    if (mins >= 20) openRefresh(mins); else toast(`Logged ${mins} min on ${F.track.name}. That's a rep.`);
+    if (mins >= 20) openRefresh(mins); else toast(`Logged ${mins} min on ${tname}. That's a rep.`);
     show(current);
   }
-  function cancelFocus() { clearInterval(F.timer); $('#focus').hidden = true; document.title = 'First Light'; }
+  function cancelFocus() { clearInterval(F.timer); $('#focus').hidden = true; document.title = 'First Light'; F.track = null; }
 
   /* ---------- Refresh break ---------- */
   let RT;
@@ -347,7 +380,7 @@
 
   /* ---------- Generic dialog (onboarding, edit step) ---------- */
   function openDialog(html, onMount) { $('#dialogBody').innerHTML = html; $('#dialog').hidden = false; onMount && onMount($('#dialogBody')); }
-  function closeAll() { ['#drift', '#dialog', '#refresh'].forEach(s => $(s).hidden = true); clearInterval(BT); }
+  function closeAll() { ['#drift', '#dialog', '#refresh'].forEach(s => $(s).hidden = true); clearInterval(BT); clearInterval(RT); }
 
   function onboarding() {
     const opts = S.tracks.map(t => `<label><input type="radio" name="lead" value="${t.id}" ${t.id === S.leadTrack ? 'checked' : ''}><span>${esc(t.name)}</span></label>`).join('');
@@ -370,9 +403,9 @@
       f.addEventListener('submit', e => {
         e.preventDefault();
         S.settings.name = f.name.value.trim();
-        const lead = f.lead.value || S.leadTrack; S.leadTrack = lead;
+        const lead = (f.lead && f.lead.value) || S.leadTrack; S.leadTrack = lead; S._pick = null;
         const t = trackById(lead); if (t) t.nextStep = f.step.value.trim();
-        const c = f.chrono.value; S.settings.chronotype = c;
+        const c = f.chrono.value || 'evening'; S.settings.chronotype = c;
         const win = { morning: ['06:30', '09:30'], neutral: ['09:30', '12:30'], evening: ['19:30', '22:30'] }[c];
         S.settings.peakStart = win[0]; S.settings.peakEnd = win[1];
         S.onboarded = true; save(); closeAll(); show('now');
@@ -403,8 +436,8 @@
 
   /* ---------- Export / Import ---------- */
   function exportData() {
-    const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `first-light-backup-${dayKey()}.json`; a.click();
+    const blob = new Blob([JSON.stringify(snapshot(), null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `first-light-backup-${dayKey()}.json`; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000); toast('Backup downloaded.');
   }
   function importData(file) {
@@ -414,7 +447,7 @@
         const d = JSON.parse(r.result);
         if (!d || d.v !== 1 || !Array.isArray(d.tracks) || !Array.isArray(d.sessions)) throw new Error('bad');
         if (!confirm(`Replace current data with this backup? (${d.tracks.length} tracks, ${d.sessions.length} sessions)`)) return;
-        S = { ...seed(), ...d, settings: { ...seed().settings, ...d.settings } }; save(); applyTheme(); show(current); toast('Backup restored.');
+        S = normalize(d); S._pick = null; S._prevVisit = S.lastVisit || null; save(); applyTheme(); show(current); toast('Backup restored.');
       } catch { toast("That file isn't a valid First Light backup."); }
     };
     r.readAsText(file);
@@ -422,7 +455,7 @@
 
   /* ---------- Events ---------- */
   document.addEventListener('click', e => {
-    const v = e.target.closest('[data-view]'); if (v) { e.preventDefault(); show(v.dataset.view, { focus: v.dataset.focus }); return; }
+    const v = e.target.closest('button[data-view], a[data-view]'); if (v) { e.preventDefault(); show(v.dataset.view, { focus: v.dataset.focus }); return; }
     if (e.target.closest('[data-close]')) { closeAll(); return; }
     const sm = e.target.closest('[data-smaller]');
     if (sm) { const t = suggested(); if (t) { t.nextStep = sm.dataset.smaller; save(); renderNow(); toast('Smaller step set.'); } return; }
@@ -436,20 +469,30 @@
       if (act === 'lead') { S.leadTrack = t.id; S._pick = null; save(); renderTracks(); }
       if (act === 'toggle') { t.active = !t.active; save(); renderTracks(); }
       if (act === 'start') startFocus(t);
-      if (act === 'reserve') { const wk = weekKey(); S.reserves[wk] = S.reserves[wk] || {}; S.reserves[wk][t.id] = (S.reserves[wk][t.id] || 0) + 1; save(); renderTracks(); toast('Reserve used. Still on track.'); }
+      if (act === 'reserve') { const wk = weekKey(); S.reserves[wk] = S.reserves[wk] || {}; S.reserves[wk][t.id] = (S.reserves[wk][t.id] || 0) + 1; S.reserveDays = S.reserveDays || {}; S.reserveDays[t.id] = dayKey(); save(); renderTracks(); toast('Reserve used. Still on track.'); }
       return;
     }
     const pli = e.target.closest('#plansEditList [data-pact]');
-    if (pli) { const id = pli.closest('li').dataset.id, p = S.plans.find(x => x.id === id); if (pli.dataset.pact === 'del') S.plans = S.plans.filter(x => x.id !== id); else p.enabled = !p.enabled; save(); renderTracks(); }
+    if (pli) { const id = pli.closest('li').dataset.id, p = S.plans.find(x => x.id === id); if (!p) return; if (pli.dataset.pact === 'del') { S.plans = S.plans.filter(x => x.id !== id); toast('Plan deleted.'); } else p.enabled = !p.enabled; save(); renderTracks(); }
   });
 
   $('#tracksList').addEventListener('change', e => {
     const card = e.target.closest('.track'); const f = e.target.dataset.f; if (!card || !f) return;
-    const t = trackById(card.dataset.id);
-    if (f === 'weeklyTarget' || f === 'reservesPerWeek') t[f] = Math.max(0, Math.min(14, parseInt(e.target.value, 10) || 0));
-    else if (f === 'resource') { const u = safeUrl(e.target.value.trim()); t.resources = u ? [{ title: 'Main resource', url: u }] : []; }
+    const t = trackById(card.dataset.id); if (!t) return;
+    if (f === 'weeklyTarget') t[f] = clampInt(e.target.value, 1, 14, t[f]);
+    else if (f === 'reservesPerWeek') t[f] = clampInt(e.target.value, 0, 5, t[f]);
+    else if (f === 'resource') {
+      const raw = e.target.value.trim(), u = safeUrl(raw);
+      if (raw && !u) { toast('That link needs to start with http:// or https://'); return; }
+      t.resources = u ? [{ title: 'Main resource', url: u }] : [];
+    }
+    else if (f === 'name') t.name = e.target.value.trim().slice(0, 60) || 'Untitled track';
     else t[f] = e.target.value.trim().slice(0, 200);
     save(); toast('Saved.');
+    // Update just this card's summary line in place, so the cursor never jumps.
+    const wl = $('.week-line', card); if (wl) wl.innerHTML = weekLine(t);
+    if (f === 'name' && e.target.value !== t.name) e.target.value = t.name;
+    if ((f === 'weeklyTarget' || f === 'reservesPerWeek') && String(t[f]) !== e.target.value) e.target.value = t[f];
   });
 
   $('#addTrack').addEventListener('click', () => {
@@ -458,12 +501,16 @@
   });
   $('#planForm').addEventListener('submit', e => {
     e.preventDefault(); const f = e.target;
+    if (!f.cue.value.trim() || !f.action.value.trim()) { toast('Fill in both parts of the plan.'); return; }
     S.plans.push({ id: uid(), cue: f.cue.value.trim().replace(/^if\s+/i, ''), action: f.action.value.trim().replace(/^(then\s+)?(i\s+)?/i, ''), enabled: true });
     save(); f.reset(); renderTracks(); toast('Plan added.');
   });
 
   $('#startBtn').addEventListener('click', () => startFocus(suggested()));
-  $('#pickAnother').addEventListener('click', () => { const act = activeTracks(); const cur = suggested(); const i = act.indexOf(cur); S._pick = (i + 1) % act.length; renderNow(); });
+  $('#pickAnother').addEventListener('click', () => {
+    const act = activeTracks(); if (act.length < 2) { toast(act.length ? 'You only have one active track. Add or restore one in Learning.' : 'Add a track in Learning first.'); return; }
+    const cur = suggested(); const i = act.indexOf(cur); S._pick = (i + 1) % act.length; renderNow(); toast(`Switched to ${act[S._pick].name}.`);
+  });
   $('#makeSmaller').addEventListener('click', makeSmaller);
   $('#editStep').addEventListener('click', editStep);
   $('#driftBtn').addEventListener('click', openDrift);
@@ -475,9 +522,21 @@
   $('#logForm').addEventListener('submit', logFocus);
   $('#closeRefresh').addEventListener('click', () => { clearInterval(RT); $('#refresh').hidden = true; });
 
+  $('#reviewForm').addEventListener('submit', e => {
+    e.preventDefault(); const f = e.target, wk = weekKey();
+    const r = { weekStart: wk, savedAt: new Date().toISOString(), wins: f.wins.value.trim().slice(0, 1000), stuck: f.stuck.value.trim().slice(0, 1000), nextSteps: f.nextSteps.value.trim().slice(0, 1000) };
+    if (!r.wins && !r.stuck && !r.nextSteps) { toast('Write at least one answer first.'); return; }
+    S.reviews = S.reviews.filter(x => x.weekStart !== wk).concat(r); save(); renderReview(); toast('Review saved.');
+  });
+  // Picking a chronotype suggests a matching peak window (you can still edit the times).
+  $$('input[name="chronotype"]', $('#settingsForm')).forEach(i => i.addEventListener('change', () => {
+    const win = { morning: ['06:30', '09:30'], neutral: ['09:30', '12:30'], evening: ['19:30', '22:30'] }[i.value];
+    const f = $('#settingsForm'); if (win) { f.peakStart.value = win[0]; f.peakEnd.value = win[1]; }
+  }));
+
   $('#themeToggle').addEventListener('click', () => {
     const order = ['auto', 'light', 'dark']; S.settings.themeMode = order[(order.indexOf(S.settings.themeMode) + 1) % 3]; save(); applyTheme();
-    toast(`Theme: ${THEME_LABEL[S.settings.themeMode]}`); if (current === 'settings') renderSettings();
+    toast(`Theme: ${THEME_LABEL[S.settings.themeMode]}`); $$('input[name="themeMode"]', $('#settingsForm')).forEach(i => i.checked = i.value === S.settings.themeMode);
   });
   $('#settingsForm').addEventListener('submit', e => {
     e.preventDefault(); const f = e.target, s = S.settings;
@@ -485,15 +544,23 @@
     s.peakStart = f.peakStart.value || s.peakStart; s.peakEnd = f.peakEnd.value || s.peakEnd;
     s.themeMode = f.themeMode.value || s.themeMode; s.earnedMinutes = Math.max(5, Math.min(60, parseInt(f.earnedMinutes.value, 10) || 20));
     s.semesterStart = f.semesterStart.value || '';
-    save(); applyTheme(); toast('Settings saved.');
+    save(); applyTheme(); renderSettings(); toast('Settings saved.');
   });
   $('#exportBtn').addEventListener('click', exportData);
   $('#importFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importData(f); e.target.value = ''; });
-  $('#resetBtn').addEventListener('click', () => { if (confirm('Delete all First Light data in this browser? Export a backup first if you want to keep it.')) { localStorage.removeItem(KEY); S = seed(); save(); applyTheme(); onboarding(); } });
+  $('#resetBtn').addEventListener('click', () => { if (confirm('Delete all First Light data in this browser? Export a backup first if you want to keep it.')) { localStorage.removeItem(KEY); S = seed(); S._pick = null; S._prevVisit = null; save(); applyTheme(); show('now'); onboarding(); toast('All data reset.'); } });
 
   document.addEventListener('keydown', e => {
-    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
-    if (e.key === 'Escape') { if (!$('#focus').hidden && $('#logForm').hidden) cancelFocus(); closeAll(); if (current !== 'now') show('now'); return; }
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+    if (e.key === 'Escape') {
+      if (!$('#focus').hidden) { if ($('#logForm').hidden) cancelFocus(); return; }
+      const open = ['#drift', '#refresh'].some(s => !$(s).hidden) || (!$('#dialog').hidden && S.onboarded);
+      if (open) { closeAll(); return; }
+      if (!$('#dialog').hidden) return; // onboarding: use Skip
+      if (typing) { document.activeElement.blur(); return; }
+      if (current !== 'now') show('now');
+      return;
+    }
     if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
     const overlayOpen = $$('.overlay').some(o => !o.hidden);
     if (overlayOpen) return;
@@ -501,6 +568,10 @@
     if (e.key === 'd' || e.key === 'D') { e.preventDefault(); openDrift(); }
   });
 
+  window.addEventListener('hashchange', () => {
+    const v = location.hash.slice(1);
+    if (['now', 'tracks', 'review', 'settings'].includes(v) && v !== current) show(v);
+  });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { applyTheme(); if (current === 'now') renderNow(); } });
   setInterval(() => { applyTheme(); if (current === 'now' && $('#focus').hidden) { $('#clock').textContent = `${fmtDate(new Date())} · ${fmtTime(new Date())}`; } }, 30000);
 

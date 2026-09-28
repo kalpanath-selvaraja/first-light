@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2045"/><stop offset="1" stop-color="#0b0f19"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/><g fill="none" stroke="#eab44e" stroke-width="3.5" stroke-linecap="round"><path d="M12 42h40"/><path d="M20 42a12 12 0 0 1 24 0"/><path d="M32 14v6M17 20l4 4M47 20l-4 4"/></g><circle cx="32" cy="42" r="3.5" fill="#eab44e"/></svg>
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#2a2045"/>
+      <stop offset="1" stop-color="#0b0f19"/>
+    </linearGradient>
+  </defs>
+  <rect fill="url(#g)" height="64" rx="14" width="64"/>
+  <g fill="none" stroke="#eab44e" stroke-linecap="round" stroke-width="3.5">
+    <path d="M12 42h40"/>
+    <path d="M20 42a12 12 0 0 1 24 0"/>
+    <path d="M32 14v6M17 20l4 4M47 20l-4 4"/>
+  </g>
+  <circle cx="32" cy="42" fill="#eab44e" r="3.5"/>
+</svg>
