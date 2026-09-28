@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en" data-phase="day" data-mode="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>First Light</title>
+  <meta name="description" content="Your first screen of the day. One small start.">
+  <meta name="theme-color" content="#f4efe6">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=zodiak@400,500,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <!-- Ambient sky: gradient + sun/moon on an arc, positioned by the hour -->
+  <div class="sky" aria-hidden="true">
+    <svg class="sky-arc" viewBox="0 0 1000 500" preserveAspectRatio="none">
+      <path d="M -20 480 Q 500 -120 1020 480" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 8" opacity=".35"/>
+    </svg>
+    <div class="orb" id="orb"></div>
+    <div class="stars" id="stars"></div>
+    <div class="grain"></div>
+  </div>
+
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="#now" data-view="now" aria-label="First Light home">
+        <svg class="logo" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M4 22h24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M9 22a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M16 6v4M7.5 9.5l2.5 2.5M24.5 9.5 22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="16" cy="22" r="2" fill="currentColor"/>
+        </svg>
+        <span>First Light</span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <button class="nav-btn" data-view="now" aria-current="page">Now</button>
+        <button class="nav-btn" data-view="tracks">Learning</button>
+        <button class="nav-btn" data-view="review">Review</button>
+        <button class="nav-btn" data-view="settings">Settings</button>
+      </nav>
+      <button class="icon-btn" id="themeToggle" aria-label="Change theme mode" title="Theme: Auto / Light / Dark">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span id="themeLabel">Auto</span>
+      </button>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <!-- NOW -->
+      <section class="view" id="view-now" aria-labelledby="greeting">
+        <div class="fresh" id="freshBanner" hidden></div>
+        <p class="eyebrow" id="clock"></p>
+        <h1 class="greeting" id="greeting">Good morning.</h1>
+        <p class="subline" id="subline"></p>
+
+        <article class="launch card" id="launchCard">
+          <div class="launch-head">
+            <span class="track-pill" id="launchTrack"></span>
+            <span class="muted small" id="launchWhy"></span>
+          </div>
+          <p class="label">Your next tiny step</p>
+          <p class="next-step" id="launchStep"></p>
+          <div class="launch-actions">
+            <button class="btn primary big" id="startBtn"><span>Start 2 minutes</span><kbd>S</kbd></button>
+            <a class="btn ghost" id="openWork" target="_blank" rel="noopener noreferrer" hidden>Open my work ↗</a>
+          </div>
+          <div class="launch-links">
+            <button class="link" id="pickAnother">Pick another track</button>
+            <span aria-hidden="true">·</span>
+            <button class="link" id="makeSmaller">Make this smaller</button>
+            <span aria-hidden="true">·</span>
+            <button class="link" id="editStep">Edit step</button>
+          </div>
+          <div class="smaller" id="smallerBox" hidden></div>
+        </article>
+
+        <div class="now-grid">
+          <section class="card soft" aria-labelledby="plansTitle">
+            <div class="row between">
+              <h2 class="h-small" id="plansTitle">If–then plans</h2>
+              <button class="link" data-view="tracks" data-focus="plans">Edit</button>
+            </div>
+            <ul class="plans" id="plansList"></ul>
+          </section>
+          <section class="card soft" aria-labelledby="weekTitle">
+            <h2 class="h-small" id="weekTitle">This week</h2>
+            <div class="week-stats" id="weekStats"></div>
+          </section>
+        </div>
+
+        <button class="drift-btn" id="driftBtn">I drifted <kbd>D</kbd></button>
+      </section>
+
+      <!-- TRACKS -->
+      <section class="view" id="view-tracks" hidden aria-labelledby="tracksTitle">
+        <div class="row between wrap">
+          <div>
+            <p class="eyebrow">Learning tracker</p>
+            <h1 class="title" id="tracksTitle">What you're learning</h1>
+          </div>
+          <button class="btn" id="addTrack">+ Add track</button>
+        </div>
+        <div class="tracks" id="tracksList"></div>
+
+        <section class="card soft plans-edit" id="plansEdit" aria-labelledby="plansEditTitle">
+          <h2 class="h-small" id="plansEditTitle">If–then plans</h2>
+          <p class="muted small">Pick the moment you usually drift, then decide in advance what you'll do instead.</p>
+          <ul class="plans editable" id="plansEditList"></ul>
+          <form class="plan-form" id="planForm">
+            <label><span>If…</span><input name="cue" required placeholder="I open Chrome and feel the pull to YouTube"></label>
+            <label><span>then I…</span><input name="action" required placeholder="click Start 2 minutes on Python"></label>
+            <button class="btn" type="submit">Add plan</button>
+          </form>
+        </section>
+      </section>
+
+      <!-- REVIEW -->
+      <section class="view" id="view-review" hidden aria-labelledby="reviewTitle">
+        <p class="eyebrow" id="reviewRange"></p>
+        <h1 class="title" id="reviewTitle">Weekly review</h1>
+        <p class="muted">Five minutes. Look at what happened, then set next week's steps. No grades.</p>
+        <div class="review-grid">
+          <section class="card soft"><h2 class="h-small">Reps by track</h2><div id="revTracks"></div></section>
+          <section class="card soft"><h2 class="h-small">What pulled you away</h2><div id="revLapses"></div></section>
+          <section class="card soft span2"><h2 class="h-small">When you actually worked</h2><p class="muted small">Bars show sessions by hour. The highlighted band is your peak window.</p><div class="hours" id="revHours"></div></section>
+        </div>
+        <form class="card review-form" id="reviewForm">
+          <label><span>What made starting easy this week?</span><textarea name="wins" rows="2"></textarea></label>
+          <label><span>What pulled me away most, and what will I change?</span><textarea name="stuck" rows="2"></textarea></label>
+          <label><span>Next week's first steps</span><textarea name="nextSteps" rows="2"></textarea></label>
+          <button class="btn primary" type="submit">Save review</button>
+        </form>
+        <div id="pastReviews"></div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="view" id="view-settings" hidden aria-labelledby="settingsTitle">
+        <p class="eyebrow">Settings</p>
+        <h1 class="title" id="settingsTitle">Make it yours</h1>
+        <form class="card settings" id="settingsForm">
+          <label><span>Your name (optional)</span><input name="name" maxlength="40"></label>
+          <fieldset>
+            <legend>When is your brain sharpest?</legend>
+            <p class="muted small">Most students are evening or neutral types, not morning people. Put hard work in your peak window.</p>
+            <div class="seg">
+              <label><input type="radio" name="chronotype" value="morning"><span>Morning</span></label>
+              <label><input type="radio" name="chronotype" value="neutral"><span>Neutral</span></label>
+              <label><input type="radio" name="chronotype" value="evening"><span>Evening</span></label>
+            </div>
+          </fieldset>
+          <div class="row gap">
+            <label><span>Peak window starts</span><input type="time" name="peakStart"></label>
+            <label><span>ends</span><input type="time" name="peakEnd"></label>
+          </div>
+          <fieldset>
+            <legend>Theme</legend>
+            <div class="seg">
+              <label><input type="radio" name="themeMode" value="auto"><span>Auto (by time)</span></label>
+              <label><input type="radio" name="themeMode" value="light"><span>Light</span></label>
+              <label><input type="radio" name="themeMode" value="dark"><span>Dark</span></label>
+            </div>
+          </fieldset>
+          <div class="row gap">
+            <label><span>Earned watch time (minutes)</span><input type="number" name="earnedMinutes" min="5" max="60" step="5"></label>
+            <label><span>Semester start date</span><input type="date" name="semesterStart"></label>
+          </div>
+          <button class="btn primary" type="submit">Save settings</button>
+        </form>
+
+        <section class="card soft">
+          <h2 class="h-small">Your data</h2>
+          <p class="muted small">Everything is saved in this browser only. Export a backup every week. Clearing site data or using another browser profile will lose it.</p>
+          <div class="row gap wrap">
+            <button class="btn" id="exportBtn">Export backup (.json)</button>
+            <label class="btn file-btn">Import backup<input type="file" id="importFile" accept="application/json,.json" hidden></label>
+            <button class="btn danger" id="resetBtn">Reset everything</button>
+          </div>
+        </section>
+
+        <section class="card soft guide" aria-labelledby="guideTitle">
+          <h2 class="h-small" id="guideTitle">Make this your first screen</h2>
+          <ol>
+            <li><b>Chrome startup:</b> open <code>chrome://settings/onStartup</code>, choose "Open a specific page or set of pages", and add this page's address. Don't use "Continue where you left off", because it reopens yesterday's tabs.</li>
+            <li><b>Every new tab:</b> install the free "New Tab Redirect" extension and set this page as its URL.</li>
+            <li><b>Install as an app:</b> Chrome menu → Cast, save, and share → Install page as app.</li>
+            <li><b>Open at Windows login:</b> press <kbd>Win</kbd>+<kbd>R</kbd>, type <code>shell:startup</code>, and drag the First Light app shortcut into that folder.</li>
+            <li><b>Block the pull:</b> install "LeechBlock NG". Block youtube.com and netflix.com during your peak window, but allow 20 minutes per hour. That's your earned watch time. Set the blocked-page redirect to this app and protect its settings with a random access code.</li>
+            <li><b>Keep tutorials, lose the rabbit hole:</b> install "Unhook" to hide YouTube's recommendations and Shorts.</li>
+          </ol>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <!-- FOCUS overlay -->
+  <div class="overlay" id="focus" hidden role="dialog" aria-modal="true" aria-labelledby="focusStep">
+    <div class="focus-inner">
+      <p class="eyebrow" id="focusTrack"></p>
+      <div class="ring-wrap">
+        <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+          <circle cx="100" cy="100" r="90" class="ring-bg"/>
+          <circle cx="100" cy="100" r="90" class="ring-fg" id="ringFg"/>
+        </svg>
+        <div class="ring-time" id="ringTime" aria-live="polite">2:00</div>
+      </div>
+      <p class="focus-step" id="focusStep"></p>
+      <p class="muted focus-why" id="focusWhy"></p>
+      <p class="focus-note" id="focusNote">Just two minutes. You can stop after that.</p>
+      <div class="row gap center" id="focusBtns">
+        <button class="btn ghost" id="keepGoing" hidden>Keep going</button>
+        <button class="btn primary" id="doneBtn">Done</button>
+        <button class="btn ghost" id="cancelFocus">Cancel</button>
+      </div>
+      <form class="log-form" id="logForm" hidden>
+        <label><span>What did you do? (optional)</span><input name="evidence" placeholder="e.g. wrote the POST /users route"></label>
+        <label><span>Link to your work (optional)</span><input name="url" type="url" placeholder="https://github.com/…"></label>
+        <label><span>Next tiny step for next time</span><input name="next" required></label>
+        <button class="btn primary" type="submit">Log it</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- DRIFT overlay -->
+  <div class="overlay" id="drift" hidden role="dialog" aria-modal="true" aria-labelledby="driftTitle">
+    <div class="sheet">
+      <div id="driftStep1">
+        <h2 class="title" id="driftTitle">Okay. You drifted.</h2>
+        <p class="muted">It happens. What pulled you?</p>
+        <div class="chips" id="driftChips"></div>
+      </div>
+      <div id="driftStep2" hidden>
+        <p class="calm">Drifting is how your brain escapes a bad mood, not a character flaw. One miss doesn't break a habit. Only the next 2 minutes matter.</p>
+        <div class="breath" aria-hidden="true"><div class="breath-dot"></div></div>
+        <p class="muted small center" id="breathText">Breathe in… and out. 30 seconds.</p>
+        <div class="row gap center">
+          <button class="btn primary" id="restartBtn">Restart 2 minutes now</button>
+          <button class="btn ghost" id="closeDrift">Not now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFRESH overlay -->
+  <div class="overlay" id="refresh" hidden role="dialog" aria-modal="true" aria-labelledby="refreshTitle">
+    <div class="sheet">
+      <p class="eyebrow">You worked <span id="refreshMins"></span> minutes</p>
+      <h2 class="title" id="refreshTitle">Refresh break</h2>
+      <ol class="refresh-steps">
+        <li>Stand up and stretch your back and shoulders.</li>
+        <li>Drink a glass of water.</li>
+        <li>Look at something 20 feet away for 20 seconds.</li>
+        <li>Step outside or open a window for a minute.</li>
+      </ol>
+      <div class="ring-time small-ring" id="refreshTime">5:00</div>
+      <div class="earned card soft">
+        <p><b>Earned:</b> <span id="earnedText"></span> of YouTube or Netflix, guilt-free.</p>
+        <p class="muted small">This matches the hourly allowance you set in LeechBlock. When the time's up, come back here.</p>
+      </div>
+      <div class="row gap center">
+        <button class="btn primary" id="closeRefresh">Back to First Light</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ONBOARDING / GENERIC DIALOG -->
+  <div class="overlay" id="dialog" hidden role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <div class="sheet" id="dialogBody"></div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
