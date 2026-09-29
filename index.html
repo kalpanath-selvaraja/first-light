@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
   <link href="https://api.fontshare.com/v2/css?f[]=zodiak@400,500,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <!-- Ambient sky: gradient + sun/moon on an arc, positioned by the hour -->
@@ -166,6 +166,7 @@
             <label><span>Earned watch time (minutes)</span><input type="number" name="earnedMinutes" min="5" max="60" step="5"></label>
             <label><span>Semester start date</span><input type="date" name="semesterStart"></label>
           </div>
+          <label><span>Module start dates (optional, comma-separated, YYYY-MM-DD)</span><input name="moduleDates" placeholder="2026-10-12, 2026-11-23"></label>
           <button class="btn primary" type="submit">Save settings</button>
         </form>
 
@@ -213,10 +214,11 @@
         <button class="btn primary" id="doneBtn">Done</button>
         <button class="btn ghost" id="cancelFocus">Cancel</button>
       </div>
+
       <form class="log-form" id="logForm" hidden>
         <label><span>What did you do? (optional)</span><input name="evidence" placeholder="e.g. wrote the POST /users route"></label>
         <label><span>Link to your work (optional)</span><input name="url" type="url" placeholder="https://github.com/…"></label>
-        <label><span>Next tiny step for next time</span><input name="next" required></label>
+        <label><span>Next tiny step for next time (optional)</span><input name="next" placeholder="Leave blank to clear this card"></label>
         <button class="btn primary" type="submit">Log it</button>
       </form>
     </div>
@@ -257,6 +259,8 @@
       <div class="earned card soft">
         <p><b>Earned:</b> <span id="earnedText"></span> of YouTube or Netflix, guilt-free.</p>
         <p class="muted small">This matches the hourly allowance you set in LeechBlock. When the time's up, come back here.</p>
+        <div class="ring-time small-ring" id="earnedTime"></div>
+        <button class="btn" id="startEarned">Start my earned time</button>
       </div>
       <div class="row gap center">
         <button class="btn primary" id="closeRefresh">Back to First Light</button>
@@ -271,6 +275,6 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

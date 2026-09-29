@@ -21,7 +21,7 @@
         { id: mern, name: 'MERN (RAD)', why: 'RAD is this semester, and MERN is what employers ask for.', nextStep: 'Open the MERN repo and run npm run dev', weeklyTarget: 4, reservesPerWeek: 2, status: 'practicing', resources: [], active: true },
         { id: proj, name: 'Project', why: "A finished project shows what I can do better than any grade.", nextStep: 'Write the README for my next project in 3 lines', weeklyTarget: 2, reservesPerWeek: 1, status: 'not started', resources: [], active: true },
       ],
-      sessions: [], lapses: [], reviews: [], reserves: {}, reserveDays: {},
+      sessions: [], lapses: [], reviews: [], reserves: {}, reserveDays: {}, doneToday: {},
       plans: [
         { id: uid(), cue: 'I open Chrome and feel the pull to YouTube', action: 'click Start 2 minutes on my lead track', enabled: true },
         { id: uid(), cue: 'I get home from IJSE and open the laptop', action: 'open my MERN repo and run it, 2 minutes only', enabled: true },
@@ -49,6 +49,7 @@
       plans: arr(s.plans).filter(x => x && x.cue).map(x => ({ id: String(x.id || uid()), cue: String(x.cue), action: String(x.action || ''), enabled: x.enabled !== false })),
       reserves: s.reserves && typeof s.reserves === 'object' ? s.reserves : {},
       reserveDays: s.reserveDays && typeof s.reserveDays === 'object' ? s.reserveDays : {},
+      doneToday: s.doneToday && typeof s.doneToday === 'object' ? s.doneToday : {},
       settings: { ...base.settings, ...(s.settings || {}) },
     };
     if (!['auto', 'light', 'dark'].includes(out.settings.themeMode)) out.settings.themeMode = 'auto';
@@ -87,7 +88,7 @@
   const THEME_LABEL = { auto: 'Auto', light: 'Light', dark: 'Dark' };
   function applyTheme() {
     const now = new Date(), h = now.getHours(), phase = phaseOf(h);
-    const mode = S.settings.themeMode === 'auto' ? (phase === 'dawn' || phase === 'day' ? 'light' : 'dark') : S.settings.themeMode;
+    const mode = S.settings.themeMode === 'auto' ? ((phase === 'dawn' || phase === 'day') && !(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'light' : 'dark') : S.settings.themeMode;
     const root = document.documentElement;
     root.dataset.phase = phase; root.dataset.mode = mode;
     $('#themeLabel').textContent = THEME_LABEL[S.settings.themeMode];
@@ -112,20 +113,23 @@
 
   /* ---------- Derived data ---------- */
   const activeTracks = () => S.tracks.filter(t => t.active);
+  const openTracks = () => activeTracks().filter(t => (S.doneToday || {})[t.id] !== dayKey());
   const trackById = id => S.tracks.find(t => t.id === id);
   const sessionsThisWeek = (trackId) => { const ws = weekStart().getTime(); return S.sessions.filter(s => new Date(s.startedAt).getTime() >= ws && (!trackId || s.trackId === trackId)); };
   const reservesUsed = (trackId) => (S.reserves[weekKey()] || {})[trackId] || 0;
   const gap = t => t.weeklyTarget - sessionsThisWeek(t.id).length - reservesUsed(t.id);
   function suggested() {
-    const act = activeTracks(); if (!act.length) return null;
+    const act = openTracks(); if (!act.length) return null;
     const lead = trackById(S.leadTrack);
-    if (lead && lead.active && S._pick == null) {
+    if (lead && act.includes(lead) && S._pick == null) {
       const maxGap = Math.max(...act.map(gap));
       if (gap(lead) >= maxGap || gap(lead) > 0) return lead;
     }
     if (S._pick != null) return act[S._pick % act.length];
     return [...act].sort((a, b) => gap(b) - gap(a))[0];
   }
+
+  const startTarget = () => suggested() || [...activeTracks()].sort((a, b) => gap(b) - gap(a))[0] || null;
 
   /* ---------- Rendering: Now ---------- */
   function greetingText(h) {
@@ -151,19 +155,26 @@
     // Fresh start banner
     const fb = $('#freshBanner');
     const isMonday = now.getDay() === 1, isFirst = now.getDate() === 1, isSem = S.settings.semesterStart === dayKey(now);
-    if (isMonday || isFirst || isSem) {
-      const why = isSem ? 'A new semester' : isMonday ? 'A new week' : 'A new month';
+    const isMod = String(S.settings.moduleDates || '').split(',').map(x => x.trim()).filter(Boolean).includes(dayKey(now));
+    if (isMonday || isFirst || isSem || isMod) {
+      const why = isSem ? 'A new semester' : isMod ? 'A new module' : isMonday ? 'A new week' : 'A new month';
       const extra = isMonday ? 'Reserves are reset and last week doesn\'t count against you.' : 'Whatever happened before doesn\'t count against you.';
       fb.innerHTML = `<b>Fresh page.</b> ${why}. ${extra} What's the first 2 minutes?`;
       fb.hidden = false;
+    } else if (now.getDay() === 0 && h >= 18 && !S.reviews.some(r => r.weekStart === weekKey(now))) {
+      fb.innerHTML = `<b>Sunday evening.</b> Five minutes to look back and set next week's steps. <button class="link" data-view="review">Open weekly review</button>`; fb.hidden = false;
     } else fb.hidden = true;
 
     const t = suggested();
+    const allDone = !t && activeTracks().length > 0;
+    $('#startBtn span').textContent = allDone ? 'Start another 2 minutes' : 'Start 2 minutes';
+    $('.launch-links').hidden = !t;
     if (!t) {
-      $('#launchTrack').textContent = 'No active tracks';
-      $('#launchStep').textContent = 'Add a learning track to get started.';
+      $('#openWork').hidden = true;
+      $('#launchTrack').textContent = allDone ? 'Logged for today' : 'No active tracks';
+      $('#launchStep').textContent = allDone ? "That rep is logged and the card is cleared. Rest, or start another if it's flowing." : 'Add a learning track to get started.';
       $('#launchWhy').textContent = '';
-      $('#startBtn').disabled = true;
+      $('#startBtn').disabled = !allDone;
     } else {
       $('#startBtn').disabled = false;
       $('#launchTrack').textContent = t.name;
@@ -191,7 +202,7 @@
     }).join('');
     $('#weekStats').innerHTML = `
       <div class="stat"><span class="n">${reps}</span><span class="l">reps this week</span></div>
-      <div class="stat"><span class="n">${mins}</span><span class="l">minutes</span></div>
+      <div class="stat"><span class="n">${activeTracks().reduce((a, t) => a + Math.max(0, t.reservesPerWeek - reservesUsed(t.id)), 0)}</span><span class="l">reserves left</span></div>
       <div class="stat"><span class="n">${total}</span><span class="l">total reps</span></div>
       <div class="week-tracks">${rows}</div>`;
   }
@@ -275,7 +286,7 @@
   function renderSettings() {
     const f = $('#settingsForm'), s = S.settings;
     f.name.value = s.name; f.peakStart.value = s.peakStart; f.peakEnd.value = s.peakEnd;
-    f.earnedMinutes.value = s.earnedMinutes; f.semesterStart.value = s.semesterStart || '';
+    f.earnedMinutes.value = s.earnedMinutes; f.semesterStart.value = s.semesterStart || ''; f.moduleDates.value = s.moduleDates || '';
     $$('input[name="chronotype"]', f).forEach(i => i.checked = i.value === s.chronotype);
     $$('input[name="themeMode"]', f).forEach(i => i.checked = i.value === s.themeMode);
   }
@@ -330,7 +341,7 @@
   function finishFocus() {
     clearInterval(F.timer); F.end = Date.now();
     $('#focusBtns').hidden = true; $('#logForm').hidden = false;
-    $('#logForm').next.value = F.track.nextStep || '';
+    $('#logForm').next.value = '';
     $('#logForm').evidence.focus();
   }
   function logFocus(e) {
@@ -338,7 +349,8 @@
     const f = e.target, mins = Math.max(1, Math.round(((F.end || Date.now()) - F.start) / 60000));
     const url = safeUrl(f.url.value.trim());
     S.sessions.push({ id: uid(), trackId: F.track.id, startedAt: new Date(F.start).toISOString(), minutes: mins, kind: mins > 2 ? 'continued' : 'two-minute', evidence: f.evidence.value.trim().slice(0, 200), artifactUrl: url });
-    const t = trackById(F.track.id); if (t && f.next.value.trim()) t.nextStep = f.next.value.trim().slice(0, 200);
+    const t = trackById(F.track.id); if (t) t.nextStep = f.next.value.trim().slice(0, 200);
+    S.doneToday = S.doneToday || {}; S.doneToday[F.track.id] = dayKey();
     save(); $('#focus').hidden = true; document.title = 'First Light';
     const tname = F.track.name; F.track = null;
     S._pick = null;
@@ -348,9 +360,10 @@
   function cancelFocus() { clearInterval(F.timer); $('#focus').hidden = true; document.title = 'First Light'; F.track = null; }
 
   /* ---------- Refresh break ---------- */
-  let RT;
+  let RT, ET;
   function openRefresh(mins) {
     $('#refreshMins').textContent = mins;
+    clearInterval(ET); $('#earnedTime').textContent = ''; $('#startEarned').hidden = false;
     $('#earnedText').textContent = `${S.settings.earnedMinutes} minutes`;
     const end = Date.now() + 5 * 60000; $('#refresh').hidden = false;
     clearInterval(RT); RT = setInterval(() => {
@@ -380,7 +393,7 @@
 
   /* ---------- Generic dialog (onboarding, edit step) ---------- */
   function openDialog(html, onMount) { $('#dialogBody').innerHTML = html; $('#dialog').hidden = false; onMount && onMount($('#dialogBody')); }
-  function closeAll() { ['#drift', '#dialog', '#refresh'].forEach(s => $(s).hidden = true); clearInterval(BT); clearInterval(RT); }
+  function closeAll() { ['#drift', '#dialog', '#refresh'].forEach(s => $(s).hidden = true); clearInterval(BT); clearInterval(RT); clearInterval(ET); }
 
   function onboarding() {
     const opts = S.tracks.map(t => `<label><input type="radio" name="lead" value="${t.id}" ${t.id === S.leadTrack ? 'checked' : ''}><span>${esc(t.name)}</span></label>`).join('');
@@ -506,20 +519,30 @@
     save(); f.reset(); renderTracks(); toast('Plan added.');
   });
 
-  $('#startBtn').addEventListener('click', () => startFocus(suggested()));
+  $('#startBtn').addEventListener('click', () => startFocus(startTarget()));
   $('#pickAnother').addEventListener('click', () => {
-    const act = activeTracks(); if (act.length < 2) { toast(act.length ? 'You only have one active track. Add or restore one in Learning.' : 'Add a track in Learning first.'); return; }
+    const act = openTracks(); if (act.length < 2) { toast(act.length ? 'You only have one active track. Add or restore one in Learning.' : 'Add a track in Learning first.'); return; }
     const cur = suggested(); const i = act.indexOf(cur); S._pick = (i + 1) % act.length; renderNow(); toast(`Switched to ${act[S._pick].name}.`);
   });
   $('#makeSmaller').addEventListener('click', makeSmaller);
   $('#editStep').addEventListener('click', editStep);
   $('#driftBtn').addEventListener('click', openDrift);
-  $('#restartBtn').addEventListener('click', () => { closeAll(); startFocus(suggested()); });
+  $('#restartBtn').addEventListener('click', () => { closeAll(); startFocus(startTarget()); });
   $('#closeDrift').addEventListener('click', closeAll);
   $('#doneBtn').addEventListener('click', finishFocus);
   $('#keepGoing').addEventListener('click', () => { $('#keepGoing').hidden = true; $('#focusNote').textContent = 'Keep going. Press Done when you stop.'; });
   $('#cancelFocus').addEventListener('click', cancelFocus);
   $('#logForm').addEventListener('submit', logFocus);
+  $('#startEarned').addEventListener('click', () => {
+    const end = Date.now() + S.settings.earnedMinutes * 60000; clearInterval(ET); $('#startEarned').hidden = true;
+    const tick = () => {
+      const l = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+      $('#earnedTime').textContent = l ? `${Math.floor(l / 60)}:${pad(l % 60)}` : "Time's up. Come back here.";
+      document.title = l ? `Earned ${Math.floor(l / 60)}:${pad(l % 60)} · First Light` : 'First Light';
+      if (!l) clearInterval(ET);
+    };
+    tick(); ET = setInterval(tick, 500);
+  });
   $('#closeRefresh').addEventListener('click', () => { clearInterval(RT); $('#refresh').hidden = true; });
 
   $('#reviewForm').addEventListener('submit', e => {
@@ -543,7 +566,7 @@
     s.name = f.name.value.trim().slice(0, 40); s.chronotype = f.chronotype.value || s.chronotype;
     s.peakStart = f.peakStart.value || s.peakStart; s.peakEnd = f.peakEnd.value || s.peakEnd;
     s.themeMode = f.themeMode.value || s.themeMode; s.earnedMinutes = Math.max(5, Math.min(60, parseInt(f.earnedMinutes.value, 10) || 20));
-    s.semesterStart = f.semesterStart.value || '';
+    s.semesterStart = f.semesterStart.value || ''; s.moduleDates = f.moduleDates.value.trim().slice(0, 300);
     save(); applyTheme(); renderSettings(); toast('Settings saved.');
   });
   $('#exportBtn').addEventListener('click', exportData);
@@ -564,7 +587,7 @@
     if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
     const overlayOpen = $$('.overlay').some(o => !o.hidden);
     if (overlayOpen) return;
-    if (e.key === 's' || e.key === 'S') { e.preventDefault(); startFocus(suggested()); }
+    if (e.key === 's' || e.key === 'S') { e.preventDefault(); startFocus(startTarget()); }
     if (e.key === 'd' || e.key === 'D') { e.preventDefault(); openDrift(); }
   });
 
@@ -576,6 +599,7 @@
   setInterval(() => { applyTheme(); if (current === 'now' && $('#focus').hidden) { $('#clock').textContent = `${fmtDate(new Date())} · ${fmtTime(new Date())}`; } }, 30000);
 
   /* ---------- Boot ---------- */
+  Object.keys(S.doneToday).forEach(k => { if (S.doneToday[k] !== dayKey()) delete S.doneToday[k]; });
   S._pick = null; S._prevVisit = S.lastVisit || null; makeStars(); applyTheme();
   const initial = (location.hash || '#now').slice(1);
   show(['now', 'tracks', 'review', 'settings'].includes(initial) ? initial : 'now');

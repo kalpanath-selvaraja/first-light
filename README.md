@@ -39,3 +39,11 @@ S = start 2 minutes · D = I drifted · Esc = back to Now
 - Backups: import cleans up missing or broken fields; export no longer includes internal data.
 - Esc closes pop-ups first instead of jumping pages; the browser back button works.
 - Updates now reach you: the offline cache checks the network first. If you had the old version installed, reload the page twice once.
+
+## What's new in v3
+- After you press "Log it", that track's card is cleared for the rest of the day and its old step is removed. The "next tiny step" box is now optional and starts empty; type one and it becomes tomorrow's card.
+- When every active track is logged, Now shows "Logged for today" with a "Start another 2 minutes" button.
+- Auto theme now also follows your system dark-mode setting.
+- Now footer shows reserves left. Sunday-evening nudge to do the weekly review. Module start dates (Settings) trigger the fresh-page banner.
+- Earned watch time has a real countdown in the Refresh card.
+- Service worker no longer fails to install if one icon file is missing. Added icon.svg, icon-192.png, icon-512.png.
